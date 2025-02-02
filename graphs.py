@@ -1,46 +1,57 @@
 import scipy.io as sio
-import pandas as pd
+import matplotlib.pyplot as plt
 import numpy as np
-
-def flatten_cell_array(cell_array):
-    return [item[0] if item.size > 0 else '' for item in cell_array.flatten()]
 
 # Load the MATLAB file
 data = sio.loadmat('./mydata.mat')
 data_subs = data['data_subs'][0, 0]
 
-# Create a dictionary to store all the data
-data_dict = {}
+# Extract subject IDs (flattened array of strings)
+subject_ids = np.array([str(subject[0][0]) for subject in data_subs['subjectID'][0]])
+print("Subject IDs:", subject_ids)
 
-# Process each field in data_subs
-for field in data_subs.dtype.names:
-    if field.startswith('Scen'):
-        # For scenario data, we'll create separate columns for each condition
-        scenario_data = data_subs[field]
-        for i, condition in enumerate(['Dry Sound', 'Opera Hall', 'Reverb Hall', 'Small Office']):
-            column_name = f"{field}_{condition}"
-            data_dict[column_name] = scenario_data[:, i].flatten()
-    else:
-        # For other fields, flatten if necessary
-        field_data = data_subs[field]
-        if field_data.dtype.kind == 'O':  # Object type, likely a cell array
-            data_dict[field] = flatten_cell_array(field_data)
-        else:
-            data_dict[field] = field_data.flatten()
+# Extract scenarios and ensure they are numpy arrays
+scen1 = np.array(data_subs['Scen1'])
+scen2 = np.array(data_subs['Scen2'])
+scen3 = np.array(data_subs['Scen3'])
+scen4 = np.array(data_subs['Scen4'])
+scen5 = np.array(data_subs['Scen5'])
 
-# Create a DataFrame
-df = pd.DataFrame(data_dict)
+# Assuming 'ScenX' fields are numpy arrays of shape (subjects, conditions)
+scenarios = [scen1, scen2, scen3, scen4, scen5]
+titles = ['Ambient', 'Drum Beat', 'Instrumental', 'Piano', 'Poetry']
+conditions = ['Dry Sound', 'Opera Hall', 'Reverb Hall', 'Small Office']
 
-# Save to CSV
-csv_filename = 'data_subs_export.csv'
-df.to_csv(csv_filename, index=False)
+# Plotting
+fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+axes = axes.flatten()
 
-print(f"Data has been exported to {csv_filename}")
+for i, (scenario, title) in enumerate(zip(scenarios, titles)):
+    ax = axes[i]
+    for j, condition in enumerate(conditions):
+        try:
+            y_values = scenario[:, j]  # Extract the column for the condition
+        except IndexError as e:
+            print(f"IndexError for scenario {title}, condition {condition}: {e}")
+            continue
+        except Exception as e:
+            print(f"Error for scenario {title}, condition {condition}: {e}")
+            continue
 
-# Display the first few rows of the DataFrame
-print("\nFirst few rows of the exported data:")
-print(df.head())
+        # Check if dimensions match
+        if len(subject_ids) != 1:
+            print(f"Dimension mismatch for scenario {title}, condition {condition}: x ({len(subject_ids)}) vs y ({len(y_values)})")
+            continue
 
-# Display information about the DataFrame
-print("\nDataFrame Info:")
-df.info()
+        # Plotting
+        ax.plot(range(len(y_values)), y_values, label=condition)
+    ax.set_title(title)
+    ax.set_xlabel('Subject ID')
+    ax.set_ylabel('Score')
+    ax.legend()
+
+# Hide the last subplot (since we only need 5)
+axes[-1].axis('off')
+
+plt.tight_layout()
+plt.show()
